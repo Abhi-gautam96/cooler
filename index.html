@@ -7,12 +7,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Cooler">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
   <title>Cooler Control</title>
   
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const loadLocalChart = () => {
+      let s = document.createElement('script');
+      s.src = (window.apiBase || 'http://192.168.4.1') + '/chart.js';
+      s.onload = () => { if (typeof initCharts === 'function') initCharts(); };
+      document.head.appendChild(s);
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" onerror="loadLocalChart()"></script>
   
   <style>
     :root { 
@@ -31,7 +39,6 @@
       font-weight: 500;
       overscroll-behavior-y: none;
     }
-    /* Locks background page completely when a popup modal is open */
     body.modal-open {
       overflow: hidden !important;
       touch-action: none;
@@ -138,7 +145,7 @@
   <div class="header-container">
     <h2>PELTIER COOLER TELEMETRY</h2>
     <div class="header-actions">
-      <button id="installBtn" class="icon-btn install-avail" onclick="triggerInstallApp()" title="Install as Android App">
+      <button id="installBtn" class="icon-btn install-avail" onclick="triggerInstallApp()" title="Install App" style="display:none;">
         <svg viewBox="0 0 24 24">
           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
         </svg>
@@ -164,7 +171,6 @@
       <div class="metric"><span class="sub-text">Phone Battery</span><span class="value batt-text"><span id="battTemp">--</span>&deg;C</span></div>
       <div class="metric"><span class="sub-text">Dew Point Limit</span><span class="value" style="color:#fcd34d"><span id="dewPoint">--</span>&deg;C</span></div>
       
-      <!-- Real-Time Thermal Gradient Diagnostics -->
       <div class="diag-grid">
         <div class="diag-item">
           <span class="diag-label">TEC Lift (&Delta;T Hot-Cold)</span>
@@ -214,7 +220,6 @@
         <span class="value" style="color:#a78bfa; font-size:1.45rem;"><span id="fanState">--</span></span>
       </div>
 
-      <!-- Estimated Cooler Power Draw Meter (Dedicated Left = TEC, Right = Fan) -->
       <div class="pwr-meter-box">
         <div class="pwr-header">
           <span class="pwr-title">Cooler Power (<span id="psuSpecLabel">9.0V 3.0A</span>)</span>
@@ -257,7 +262,6 @@
       <canvas id="loadChart"></canvas>
     </div>
 
-    <!-- Full-Width Live Performance + Session Benchmark + Chart Controls + CSV Logger -->
     <div class="card" style="grid-column: 1 / -1;">
       <h3>
         <span>Live Cooling Performance</span>
@@ -272,7 +276,6 @@
         </div>
       </h3>
 
-      <!-- Session Benchmark & Energy Strip -->
       <div class="bench-grid">
         <div class="bench-pill">
           <span class="bench-label">Active Run Time</span>
@@ -296,31 +299,7 @@
     </div>
   </div>
 
-  <!-- Install App & Single-URL Helper Modal -->
-  <div id="installModal" class="modal-overlay" onclick="if(event.target===this) closeInstallModal()">
-    <div class="modal-card">
-      <button class="close-btn" onclick="closeInstallModal()">&times;</button>
-      <h3>Install Standalone Android App</h3>
-      <div style="font-size:0.85rem; color:#cbd5e1; line-height:1.45;">
-        <div id="swStateBanner" style="padding:8px 10px; border-radius:8px; margin-bottom:10px; font-weight:600; font-size:0.82rem;"></div>
-        
-        <label class="form-label">Step 1: Ensure ESP Origins Are Allowed in Chrome Flag</label>
-        <input type="text" id="originsInputBox" class="input-field" readonly onclick="this.select()" style="font-size:0.8rem; color:var(--accent); margin-bottom:6px;">
-        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; margin-bottom:12px;" onclick="copyOriginsOnly()">1. Copy Origins List</button>
-
-        <label class="form-label">Step 2: Chrome Flag Address (Paste in Chrome URL bar)</label>
-        <input type="text" id="flagInputBox" class="input-field" value="chrome://flags/#unsafely-treat-insecure-origin-as-secure" readonly onclick="this.select()" style="font-size:0.8rem; color:#93c5fd; margin-bottom:6px;">
-        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; background:#3b82f6; color:#fff; margin-bottom:8px;" onclick="copyChromeFlagUrl()">2. Copy Chrome Flag URL</button>
-        
-        <div id="copyFlagMsg" style="font-size:0.82rem; color:#10b981; font-weight:bold; text-align:center; min-height:20px; margin-bottom:4px;"></div>
-        <div style="font-size:0.78rem; color:#94a3b8;">
-          Tap Chrome's <strong>&#8942; Menu &rarr; Add to Home screen &rarr; Install</strong>. Because this app shell is served over HTTPS, Android opens it as a true standalone app and automatically connects to both Router and Hotspot!
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settings Modal (Power Supply / MT3608 Calibration, Wi-Fi Config & STM32 Bootloader) -->
+  <!-- Settings Modal (Power Supply / MT3608 Calibration, Wi-Fi Config & Wireless STM32 Flasher) -->
   <div id="settingsModal" class="modal-overlay" onclick="if(event.target===this) closeSettings()">
     <div class="modal-card">
       <button class="close-btn" onclick="closeSettings()">&times;</button>
@@ -362,12 +341,9 @@
 
       <h3>Network Settings (2.4GHz)</h3>
       <div class="metric" style="margin-bottom:6px;"><span class="sub-text">Active Connection:</span><span class="value" style="font-size:1.05rem; color:var(--accent);" id="currentSSID">Loading...</span></div>
-      <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:10px; font-size:0.8rem; color:#94a3b8;">
-        Home Router IP: <strong style="color:#f8fafc;" id="staIpLabel">192.168.1.6</strong> | Hotspot IP: <strong style="color:#f8fafc;">192.168.4.1</strong>
-      </div>
-      <div style="display:flex; gap:8px; margin-bottom:12px;">
-        <input type="text" id="manualStaIp" placeholder="Router IP (e.g. 192.168.1.6)" class="input-field" style="margin-bottom:0; flex:1; font-size:0.85rem;">
-        <button class="btn" style="padding:8px 12px; font-size:0.82rem; margin-top:0;" onclick="saveManualStaIp()">Set IP</button>
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:12px; font-size:0.8rem; color:#94a3b8;">
+        Unified URL: <a href="http://cooler.local" style="color:var(--accent); font-weight:bold;">http://cooler.local</a><br>
+        Home IP: <strong style="color:#f8fafc;" id="staIpLabel">--</strong> | Hotspot IP: <strong style="color:#f8fafc;">192.168.4.1</strong>
       </div>
       
       <div style="margin-bottom: 12px;">
@@ -390,8 +366,17 @@
       <button class="btn" style="margin-top:2px; padding:10px; width: 100%; font-size:0.95rem; margin-bottom:16px;" onclick="saveWiFi()">Save &amp; Connect Wi-Fi</button>
       <div id="wifiMsg" style="margin-bottom:10px; font-size:0.88rem; color:var(--accent); text-align: center;"></div>
 
-      <h3>STM32 Hardware Maintenance</h3>
-      <button class="btn" style="background:rgba(239,68,68,0.18); color:#ef4444; border:1px solid #ef4444; padding:10px; font-size:0.88rem; width:100%;" onclick="triggerStmBoot()">Jump STM32 to UART Bootloader (&lt;BOOT&gt;)</button>
+      <h3>STM32 Wireless Firmware Update (.bin)</h3>
+      <input type="file" id="stmBinFile" accept=".bin" class="input-field" style="padding:7px; font-size:0.82rem;">
+      <button class="btn" style="padding:10px; font-size:0.92rem; width:100%; margin-bottom:8px;" onclick="uploadStmFirmware()">Flash STM32 Wirelessly</button>
+      <div id="stmFlashBox" style="display:none; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+          <span id="stmFlashText" style="color:var(--accent); font-weight:bold;">Uploading...</span>
+          <span id="stmFlashPct" style="color:#94a3b8;">0%</span>
+        </div>
+        <div class="pwr-bar-bg" style="margin:0;"><div class="pwr-bar-fill" id="stmFlashBar" style="width:0%;"></div></div>
+      </div>
+      <button class="btn" style="background:rgba(239,68,68,0.18); color:#ef4444; border:1px solid #ef4444; padding:9px; font-size:0.84rem; width:100%;" onclick="triggerStmBoot()">Manual UART Bootloader (&lt;BOOT&gt;)</button>
     </div>
   </div>
 
@@ -408,14 +393,13 @@
   let latestTecW = 0.0;
   let latestFanW = 0.0;
 
-  const DEW_MARGIN = 2.0;  // Safety buffer above Dew Point (in °C)
-  const MT3608_EFF = 0.88; // Typical MT3608 step-up efficiency
-  const PWM_MAX    = 255.0; // Matches STM32G030 8-bit analogWrite (0-255)
+  const DEW_MARGIN = 2.0;
+  const MT3608_EFF = 0.88;
+  const PWM_MAX    = 255.0;
 
-  // --- Automatic Dual-IP / Unified Endpoint Failover Manager ---
-  const isExternalHost = (window.location.protocol === 'https:');
-  let savedStaIP = localStorage.getItem('cooler_sta_ip') || "192.168.1.6";
-  let apiBase = localStorage.getItem('cooler_last_base') || (isExternalHost ? ("http://" + savedStaIP) : "");
+  // --- Parallel Dual-IP / Unified Endpoint Failover Manager (GitHub Pages Mode) ---
+  let savedStaIP = localStorage.getItem('cooler_sta_ip') || "";
+  window.apiBase = savedStaIP ? ("http://" + savedStaIP) : "http://192.168.4.1";
 
   const fetchWithTimeout = (url, ms = 1200) => {
     const ctrl = new AbortController();
@@ -423,23 +407,18 @@
     return fetch(url, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' }).finally(() => clearTimeout(id));
   };
 
-  // Races Hotspot IP (192.168.4.1), Router IP (192.168.1.6), and cooler.local in parallel
+  // Races Hotspot IP (192.168.4.1), Router IP, and cooler.local in parallel
   const apiFetch = async (path) => {
     try {
-      let res = await fetchWithTimeout(apiBase + path, 1100);
-      if (res.ok) {
-        let badge = document.getElementById('endpointBadge');
-        if (badge && apiBase) badge.innerText = "(" + apiBase.replace("http://", "") + ")";
-        return res;
-      }
+      let res = await fetchWithTimeout(window.apiBase + path, 1100);
+      if (res.ok) return res;
     } catch (e) {}
 
     let candidates = [...new Set([
-      ...(!isExternalHost ? [""] : []),
       "http://192.168.4.1",
-      ...(savedStaIP && savedStaIP !== "0.0.0.0" ? ["http://" + savedStaIP] : []),
-      "http://cooler.local"
-    ])].filter(b => b !== apiBase);
+      "http://cooler.local",
+      ...(savedStaIP && savedStaIP !== "0.0.0.0" ? ["http://" + savedStaIP] : [])
+    ])].filter(b => b !== window.apiBase);
 
     const probe = async (base) => {
       let res = await fetchWithTimeout(base + path, 1400);
@@ -449,11 +428,10 @@
 
     try {
       let winner = await Promise.any(candidates.map(b => probe(b)));
-      apiBase = winner.base;
-      if (winner.base) localStorage.setItem('cooler_last_base', winner.base);
+      window.apiBase = winner.base;
       let badge = document.getElementById('endpointBadge');
       if (badge) {
-        let host = winner.base ? winner.base.replace("http://", "") : window.location.hostname;
+        let host = winner.base.replace("http://", "");
         badge.innerText = "(" + host + ")";
       }
       return winner.res;
@@ -462,85 +440,13 @@
     }
   };
 
-  const saveManualStaIp = () => {
-    const val = document.getElementById('manualStaIp').value.trim().replace(/^https?:\/\//, '');
-    if (val) {
-      savedStaIP = val;
-      localStorage.setItem('cooler_sta_ip', val);
-      apiBase = "http://" + val;
-      localStorage.setItem('cooler_last_base', apiBase);
-      document.getElementById('staIpLabel').innerText = val;
-      document.getElementById('wifiMsg').innerText = "Updated Router IP to " + val;
-      setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 2500);
-    }
-  };
-
-  // --- Universal HTTP + HTTPS Clipboard Helper ---
-  const copyTextUniversal = (inputId, msgText) => {
-    const inputEl = document.getElementById(inputId);
-    const msgEl = document.getElementById('copyFlagMsg');
-    if (!inputEl) return;
-    const text = inputEl.value;
-
-    inputEl.focus();
-    inputEl.select();
-    inputEl.setSelectionRange(0, 99999);
-
-    let copied = false;
-    try {
-      copied = document.execCommand('copy');
-    } catch (e) {}
-
-    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(() => {});
-      copied = true;
-    }
-
-    if (msgEl) {
-      msgEl.innerText = copied ? ("\u2713 " + msgText) : "Selected in box above — long-press to copy!";
-    }
-  };
-
-  // --- PWA Install Prompt & Service Worker Status Check ---
+  // --- PWA Install Prompt ---
   let deferredInstallPrompt = null;
-  const isStandaloneApp = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
-  const getOriginsString = () => {
-    let origins = ["http://cooler.local", "http://192.168.4.1"];
-    if (savedStaIP && savedStaIP !== "0.0.0.0") origins.push("http://" + savedStaIP);
-    return [...new Set(origins)].join(",");
-  };
-
-  const updateSwBanner = () => {
-    const banner = document.getElementById('swStateBanner');
-    const originsBox = document.getElementById('originsInputBox');
-    if (originsBox) originsBox.value = getOriginsString();
-    if (!banner) return;
-    if ('serviceWorker' in navigator) {
-      banner.style.background = "rgba(16,185,129,0.2)";
-      banner.style.color = "#10b981";
-      banner.style.border = "1px solid #10b981";
-      banner.innerText = "\u2713 HTTPS Standalone PWA Ready! Tap Chrome Menu (\u22EE) \u2192 Add to Home screen \u2192 Install.";
-    } else {
-      banner.style.background = "rgba(245,158,11,0.2)";
-      banner.style.color = "#f59e0b";
-      banner.style.border = "1px solid #f59e0b";
-      banner.innerText = "\u26A0 Chrome Flag Needed: Enable below so 1 URL works on both networks.";
-    }
-  };
-
-  if (isStandaloneApp()) {
-    document.addEventListener("DOMContentLoaded", () => {
-      const btn = document.getElementById('installBtn');
-      if (btn) btn.style.display = 'none';
-    });
-  }
-
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
     const btn = document.getElementById('installBtn');
-    if (btn && !isStandaloneApp()) btn.style.display = 'flex';
+    if (btn) btn.style.display = 'flex';
   });
 
   window.addEventListener('appinstalled', () => {
@@ -549,11 +455,18 @@
     if (btn) btn.style.display = 'none';
   });
 
+  const triggerInstallApp = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+    }
+  };
+
   // --- Background Scroll Lock for Popup Modals ---
   const syncBodyScrollLock = () => {
     const sOpen = document.getElementById('settingsModal').style.display === 'flex';
-    const iOpen = document.getElementById('installModal').style.display === 'flex';
-    if (sOpen || iOpen) {
+    if (sOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
@@ -566,33 +479,6 @@
     }, { passive: false });
   });
 
-  const triggerInstallApp = async () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-    } else {
-      updateSwBanner();
-      document.getElementById('copyFlagMsg').innerText = "";
-      document.getElementById('installModal').style.display = 'flex';
-      syncBodyScrollLock();
-    }
-  };
-
-  const closeInstallModal = () => {
-    document.getElementById('installModal').style.display = 'none';
-    syncBodyScrollLock();
-  };
-
-  const copyOriginsOnly = () => {
-    document.getElementById('originsInputBox').value = getOriginsString();
-    copyTextUniversal('originsInputBox', 'Copied Origins List to clipboard!');
-  };
-
-  const copyChromeFlagUrl = () => {
-    copyTextUniversal('flagInputBox', 'Copied Chrome Flag URL! Paste in address bar.');
-  };
-
   // Chart & CSV Controls
   let tempChart = null;
   let loadChart = null;
@@ -602,7 +488,7 @@
   let csvRecording = false;
   let csvRows = [];
 
-  // Session Benchmark State (Exact Wall-Clock Delta Integration)
+  // Session Benchmark State
   let sessActiveSec = 0.0;
   let sessStartBatt = null;
   let sessMinBatt   = null;
@@ -610,10 +496,8 @@
   let sessEnergyWh  = 0.0;
   let lastPollMs    = null;
 
-  // Power Config State (Synced from ESP LittleFS)
   let pwrCfg = { psuV: 9.0, psuA: 3.0, tecA: 2.55, fanV: 15.0, fanA: 0.25 };
 
-  // Safe HTML Escaping for SSIDs containing quotes or special chars
   const escapeHtml = (str) => String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -621,7 +505,6 @@
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-  // Synthesize brief WebAudio chime when Anti-Sweat warmup finishes
   const playChime = () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -698,7 +581,6 @@
     apiFetch("/autowake?w=" + (isAutoWake ? 1 : 0));
   };
 
-  // Dedicated Power Meter Renderer (Updates both TEC and Fan columns with their own A & V)
   const renderPowerMeter = (rawTecPwm, rawFanPwm) => {
     document.getElementById('psuSpecLabel').innerText = pwrCfg.psuV.toFixed(1) + "V " + pwrCfg.psuA.toFixed(1) + "A";
 
@@ -750,7 +632,6 @@
     });
   };
 
-  // --- Chart Controls & CSV Export ---
   const setChartWindow = (pts) => {
     maxChartPoints = pts;
     document.getElementById('win40').className  = 'pill-btn' + (pts === 40  ? ' active' : '');
@@ -815,6 +696,60 @@
   const triggerStmBoot = () => {
     if (confirm("Put STM32G030 into ROM UART Bootloader mode (<BOOT>)?\n\nPeltier and Fan will turn OFF immediately, and ESP UART telemetry will pause so you can flash via UART.")) {
       apiFetch("/stmboot").then(() => alert("Sent <BOOT> to STM32. ESP UART TX is now muted until you turn the cooler back ON."));
+    }
+  };
+
+  const uploadStmFirmware = async () => {
+    const fileInput = document.getElementById('stmBinFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+      alert("Please select a compiled STM32 .bin file first.");
+      return;
+    }
+    const file = fileInput.files[0];
+    if (!file.name.toLowerCase().endsWith(".bin")) {
+      alert("Please select a valid .bin firmware file.");
+      return;
+    }
+
+    const box = document.getElementById('stmFlashBox');
+    const txt = document.getElementById('stmFlashText');
+    const pct = document.getElementById('stmFlashPct');
+    const bar = document.getElementById('stmFlashBar');
+    box.style.display = 'block';
+    txt.style.color = '#38bdf8';
+    txt.innerText = "Uploading .bin to ESP-12F...";
+    pct.innerText = "5%";
+    bar.style.width = "5%";
+
+    const formData = new FormData();
+    formData.append("firmware", file, "stm_fw.bin");
+
+    try {
+      // Ensure window.apiBase is locked onto the active ESP IP before POSTing
+      await apiFetch("/stmstatus").catch(() => {});
+      await fetch(window.apiBase + "/stmflash", { method: "POST", body: formData, mode: "cors" });
+      const poll = setInterval(async () => {
+        try {
+          let r = await apiFetch("/stmstatus");
+          let st = await r.json();
+          txt.innerText = st.msg;
+          if (st.progress < 0) {
+            clearInterval(poll);
+            txt.style.color = '#ef4444';
+            pct.innerText = "ERR";
+          } else {
+            pct.innerText = st.progress + "%";
+            bar.style.width = st.progress + "%";
+            if (st.progress >= 100) {
+              clearInterval(poll);
+              txt.style.color = '#10b981';
+            }
+          }
+        } catch (e) {}
+      }, 600);
+    } catch (e) {
+      txt.style.color = '#ef4444';
+      txt.innerText = "Upload failed! Check cooler connection.";
     }
   };
   
@@ -943,8 +878,7 @@
     document.getElementById('cfgTecA').value = pwrCfg.tecA;
     document.getElementById('cfgFanV').value = pwrCfg.fanV;
     document.getElementById('cfgFanA').value = pwrCfg.fanA;
-    document.getElementById('staIpLabel').innerText = savedStaIP || "192.168.1.6";
-    document.getElementById('manualStaIp').value = savedStaIP || "192.168.1.6";
+    document.getElementById('staIpLabel').innerText = savedStaIP || "Not Connected";
     document.getElementById('settingsModal').style.display = 'flex';
     syncBodyScrollLock();
     loadSavedNetworks();
@@ -1012,7 +946,6 @@
       let dtSec = (lastPollMs !== null) ? Math.min(5.0, Math.max(0.1, (nowMs - lastPollMs) / 1000.0)) : 1.0;
       lastPollMs = nowMs;
 
-      // Learn and persist Home Wi-Fi IP for automatic cross-network failover
       if (data.ip && data.ip !== "0.0.0.0") {
         savedStaIP = data.ip;
         localStorage.setItem('cooler_sta_ip', data.ip);
@@ -1080,7 +1013,6 @@
         updateClampNotice(parseFloat(data.target));
       }
 
-      // --- 1. Real-Time Thermal Gradient Diagnostics (Delta-T) ---
       let tecDeltaEl = document.getElementById('tecDeltaVal');
       let tecBadgeEl = document.getElementById('tecDeltaBadge');
       let phnDeltaEl = document.getElementById('phoneDeltaVal');
@@ -1120,12 +1052,10 @@
         phnBadgeEl.className = "diag-badge badge-info"; phnBadgeEl.innerText = "Standby";
       }
 
-      // --- 2. Estimated Cooler Power Draw (STM32 0-255 Scale) ---
       lastRawTecPwm = parseInt(data.pwm) || 0;
       lastRawFanPwm = parseInt(data.fan) || 0;
       renderPowerMeter(lastRawTecPwm, lastRawFanPwm);
 
-      // --- 3. Exact Wall-Clock Session Benchmark & Energy Counter (Wh / mAh) ---
       if (isSystemOn || lastRawFanPwm > 0) {
         if (isSystemOn) {
           sessActiveSec += dtSec;
@@ -1150,7 +1080,6 @@
         document.getElementById('sessEnergy').innerText = sessEnergyWh.toFixed(2) + " Wh (" + Math.round(sessMah) + " mAh)";
       }
 
-      // --- 4. CSV Telemetry Recording ---
       let now = new Date().toLocaleTimeString();
       if (csvRecording) {
         let modeStr = (data.mode === 1) ? "EXTREME" : "AUTO";
@@ -1171,7 +1100,6 @@
       if(data.chg === 1) { pwrEl.style.color = "#4ade80"; chgEl.innerText = "(Charging)"; }
       else { pwrEl.style.color = "#f87171"; chgEl.innerText = "(Discharging)"; }
 
-      // Prioritized Warning Logic (including Anti-Sweat Safe Warmup alert)
       let warn = document.getElementById("warningBox");
       if (data.fault === 1) {
         warn.style.display = "block";
