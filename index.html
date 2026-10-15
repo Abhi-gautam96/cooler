@@ -1,0 +1,1238 @@
+<!DOCTYPE HTML><html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cooler">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <title>Cooler Control</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    :root { 
+      --bg: #0f172a; --card: #1e293b; --text: #f8fafc; 
+      --accent: #38bdf8; --hot: #ef4444; --cold: #0ea5e9; 
+      --batt: #f59e0b; --cpu: #8b5cf6; --gpu: #10b981; --auto: #c084fc;
+    }
+    body { 
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      margin: 0; 
+      padding: 20px; 
+      -webkit-font-smoothing: antialiased; 
+      -moz-osx-font-smoothing: grayscale; 
+      font-weight: 500;
+      overscroll-behavior-y: none;
+    }
+    /* Locks background page completely when a popup modal is open */
+    body.modal-open {
+      overflow: hidden !important;
+      touch-action: none;
+    }
+    
+    .header-container { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 25px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .header-container h2 { margin: 0; font-weight: 600; letter-spacing: 1px; color: var(--accent); text-align: center; font-size: 1.35rem; }
+    .header-actions { position: absolute; right: 0; display: flex; align-items: center; gap: 8px; }
+    .icon-btn { background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #94a3b8; cursor: pointer; padding: 7px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .icon-btn svg { width: 22px; height: 22px; fill: currentColor; transition: transform 0.3s ease; }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .icon-btn.stealth-on { background: rgba(192,132,252,0.18); border-color: var(--auto); color: var(--auto); box-shadow: 0 0 10px rgba(192,132,252,0.25); }
+    .icon-btn.install-avail { border-color: #10b981; color: #10b981; }
+
+    .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+    .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
+    .card h3 { margin-top: 0; font-size: 1.05rem; color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .metric { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .value { font-size: 1.75rem; font-weight: bold; }
+    .hot-text { color: var(--hot); } .cold-text { color: var(--cold); } .batt-text { color: var(--batt); }
+    .sub-text { font-size: 0.95rem; color: #cbd5e1; }
+    .weather-box { background: #334155; padding: 12px; border-radius: 8px; text-align: center; margin-top: auto; }
+    .btn { background: var(--accent); color: #000; border: none; padding: 15px; font-size: 1.1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: 0.2s; margin-top: auto; }
+    .btn-off { background: var(--hot); color: #fff; }
+    .btn-warmup { background: var(--batt); color: #000; }
+
+    /* Pill Controls */
+    .pill-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; font-size: 0.74rem; font-weight: 700; padding: 4px 9px; border-radius: 6px; cursor: pointer; transition: 0.2s; letter-spacing: 0.3px; }
+    .pill-btn:hover { border-color: #475569; color: #f8fafc; }
+    .pill-btn.active { background: rgba(56,189,248,0.18); color: var(--accent); border-color: var(--accent); }
+    .pill-btn.wake-on { background: rgba(16,185,129,0.18); color: #10b981; border-color: #10b981; }
+    .pill-btn.rec-on { background: rgba(239,68,68,0.22); color: #ef4444; border-color: #ef4444; animation: pulseRec 1.2s infinite; }
+    @keyframes pulseRec { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+    /* Thermal Gradient Diagnostics Box */
+    .diag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 12px 0; }
+    .diag-item { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 10px; text-align: center; }
+    .diag-label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: block; }
+    .diag-val { font-size: 1.25rem; font-weight: 700; color: #f8fafc; margin: 3px 0; display: block; }
+    .diag-badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+    .badge-good { background: rgba(16,185,129,0.2); color: #10b981; }
+    .badge-info { background: rgba(56,189,248,0.2); color: #38bdf8; }
+    .badge-warn { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .badge-crit { background: rgba(239,68,68,0.2); color: #ef4444; }
+
+    /* Mode Selector */
+    .mode-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .mode-btn { padding: 11px 8px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: #94a3b8; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.8px; cursor: pointer; transition: 0.2s; }
+    .mode-btn:hover { border-color: #475569; color: #f8fafc; }
+    .mode-btn.active-auto { background: rgba(192,132,252,0.2); color: var(--auto); border-color: var(--auto); }
+    .mode-btn.active-ext { background: rgba(239,68,68,0.2); color: var(--hot); border-color: var(--hot); }
+
+    .auto-box { background: rgba(15,23,42,0.6); border: 1px dashed #475569; border-radius: 8px; padding: 8px 10px; margin: 2px 0 8px 0; text-align: center; }
+    .auto-box-status { font-size: 0.85rem; color: #f8fafc; font-weight: 600; }
+
+    /* Cooler Power Meter Box */
+    .pwr-meter-box { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; margin-bottom: 15px; }
+    .pwr-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .pwr-title { font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+    .cal-link { background: none; border: none; color: var(--accent); font-size: 0.78rem; cursor: pointer; padding: 0; font-weight: 600; text-decoration: underline; }
+    .pwr-bar-bg { width: 100%; height: 7px; background: #1e293b; border-radius: 4px; overflow: hidden; margin: 6px 0 10px 0; }
+    .pwr-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #10b981, #38bdf8, #f59e0b); transition: width 0.3s ease; }
+    .pwr-subgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #1e293b; padding-top: 8px; }
+    .pwr-col { background: rgba(30,41,59,0.5); border-radius: 6px; padding: 6px 8px; }
+    .pwr-col-title { font-size: 0.78rem; color: #cbd5e1; display: flex; justify-content: space-between; align-items: baseline; }
+    .pwr-col-sub { font-size: 0.73rem; color: #94a3b8; display: block; margin-top: 2px; }
+
+    /* Session Benchmark Bar */
+    .bench-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .bench-pill { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 9px 12px; display: flex; flex-direction: column; }
+    .bench-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .bench-val { font-size: 1.05rem; font-weight: 700; color: #f8fafc; margin-top: 3px; }
+    
+    .input-field { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #f8fafc; font-size: 0.95rem; box-sizing: border-box; outline: none; }
+    .input-field:focus { border-color: var(--accent); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-label { font-size: 0.78rem; color: #94a3b8; display: block; margin-bottom: 4px; }
+
+    #warningBox { display: none; padding: 10px; margin-top: 6px; border-radius: 8px; font-weight: bold; text-align: center; font-size: 0.88rem; }
+    .warn-throttle { background: rgba(245,158,11,0.15); color: var(--batt); border: 1px solid var(--batt); }
+    .warn-critical { background: rgba(239,68,68,0.15); color: var(--hot); border: 1px solid var(--hot); }
+    .warn-safe { background: rgba(16,185,129,0.18); color: #10b981; border: 1px solid #10b981; }
+    canvas { width: 100% !important; max-height: 230px; margin-top: auto; }
+
+    /* Modal Overlay & Scroll Containment */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; backdrop-filter: blur(4px); z-index: 1000; overscroll-behavior: none; touch-action: none; }
+    .modal-card { background: var(--card); padding: 22px; border-radius: 16px; max-width: 430px; width: 100%; max-height: 88vh; overflow-y: auto; text-align: left; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.8); border: 1px solid #334155; position: relative; display: flex; flex-direction: column; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+    .modal-card h3 { color: var(--accent); border-bottom: 1px solid #334155; margin-bottom: 15px; padding-bottom: 8px; font-size: 1.12rem; margin-top: 0; }
+    .close-btn { position: absolute; top: 15px; right: 18px; background: none; border: none; color: #94a3b8; font-size: 1.8rem; cursor: pointer; line-height: 1; padding: 0; }
+    .close-btn:hover { color: var(--hot); }
+
+    #savedList { overscroll-behavior: contain; touch-action: pan-y; }
+    #savedList::-webkit-scrollbar, .modal-card::-webkit-scrollbar { width: 6px; }
+    #savedList::-webkit-scrollbar-thumb, .modal-card::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    @media (max-width: 480px) {
+      .header-container { justify-content: flex-start; }
+      .header-container h2 { font-size: 1.08rem; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="header-container">
+    <h2>PELTIER COOLER TELEMETRY</h2>
+    <div class="header-actions">
+      <button id="installBtn" class="icon-btn install-avail" onclick="triggerInstallApp()" title="Install as Android App">
+        <svg viewBox="0 0 24 24">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+      </button>
+      <button id="stealthBtn" class="icon-btn" onclick="toggleStealth()" title="Stealth Mode (Mute ESP Blue LED)">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" onclick="openSettings()" title="Power, Network & STM32 Settings">
+        <svg viewBox="0 0 24 24">
+          <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  
+  <div class="dashboard">
+    <div class="card">
+      <h3>Thermal Status</h3>
+      <div class="metric"><span class="sub-text">Peltier Cold Plate</span><span class="value cold-text"><span id="coldTemp">--</span>&deg;C</span></div>
+      <div class="metric"><span class="sub-text">Peltier Hot Side</span><span class="value hot-text"><span id="hotTemp">--</span>&deg;C</span></div>
+      <div class="metric"><span class="sub-text">Phone Battery</span><span class="value batt-text"><span id="battTemp">--</span>&deg;C</span></div>
+      <div class="metric"><span class="sub-text">Dew Point Limit</span><span class="value" style="color:#fcd34d"><span id="dewPoint">--</span>&deg;C</span></div>
+      
+      <!-- Real-Time Thermal Gradient Diagnostics -->
+      <div class="diag-grid">
+        <div class="diag-item">
+          <span class="diag-label">TEC Lift (&Delta;T Hot-Cold)</span>
+          <span class="diag-val" id="tecDeltaVal">--&deg;C</span>
+          <span class="diag-badge badge-info" id="tecDeltaBadge">Standby</span>
+        </div>
+        <div class="diag-item">
+          <span class="diag-label">Phone &Delta;T (Batt-Cold)</span>
+          <span class="diag-val" id="phoneDeltaVal">--&deg;C</span>
+          <span class="diag-badge badge-info" id="phoneDeltaBadge">Standby</span>
+        </div>
+      </div>
+
+      <div id="warningBox">&#9888; Condensation Risk</div>
+      
+      <div class="weather-box" style="margin-top: 12px;">
+        Local: <span id="localTemp">--</span>&deg;C | <span id="localHum">--</span>% RH<br>
+        <span style="font-size:0.75rem; color:#64748b; display:block; margin-top:3px;">Last Updated: <span id="lastUpdate" style="color:#10b981;">--:--:--</span> <span id="endpointBadge" style="color:#38bdf8;"></span></span>
+        <span style="font-size:0.85rem; color:#94a3b8; display:block; margin-top:5px;">Phone Batt Draw: <strong id="battPower">-- W</strong> <span id="chgState"></span></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>
+        <span>System Control</span>
+        <button id="wakeBtn" class="pill-btn" onclick="toggleAutoWake()" title="Automatically turns cooler ON at >=36C / heavy gaming, and OFF at <=30.5C idle">AUTO-WAKE: OFF</button>
+      </h3>
+      <div class="mode-group">
+        <button id="mode0" class="mode-btn active-auto" onclick="setMode(0)">AUTO</button>
+        <button id="mode1" class="mode-btn" onclick="setMode(1)">EXTREME</button>
+      </div>
+
+      <div class="metric" style="margin-bottom:4px;"><span class="sub-text">Target Temperature</span><span class="value cold-text"><span id="targetLabel">22.0</span>&deg;C</span></div>
+
+      <div class="auto-box">
+        <span id="autoStatusText" class="auto-box-status">Calculating optimal target...</span>
+      </div>
+
+      <div id="clampNotice" style="font-size:0.78rem; color:#fcd34d; min-height:16px; margin-bottom:6px; text-align:center;"></div>
+      
+      <div class="metric" style="margin-bottom:4px;">
+        <span class="sub-text">Peltier PWM Output</span>
+        <span class="value" style="color:#d946ef; font-size:1.45rem;"><span id="pwmState">--</span></span>
+      </div>
+      <div class="metric" style="margin-bottom:12px;">
+        <span class="sub-text">Fan Speed (PWM)</span>
+        <span class="value" style="color:#a78bfa; font-size:1.45rem;"><span id="fanState">--</span></span>
+      </div>
+
+      <!-- Estimated Cooler Power Draw Meter (Dedicated Left = TEC, Right = Fan) -->
+      <div class="pwr-meter-box">
+        <div class="pwr-header">
+          <span class="pwr-title">Cooler Power (<span id="psuSpecLabel">9.0V 3.0A</span>)</span>
+          <button class="cal-link" onclick="openSettings()">&#9881; Calibrate</button>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <span style="font-size:1.4rem; font-weight:800; color:#38bdf8;" id="totalCoolerW">0.0 W</span>
+          <span style="font-size:0.85rem; color:#94a3b8;" id="totalCoolerA">0.00 A / 27.0 W (0%)</span>
+        </div>
+        <div class="pwr-bar-bg">
+          <div class="pwr-bar-fill" id="coolerPwrBar"></div>
+        </div>
+        <div class="pwr-subgrid">
+          <div class="pwr-col">
+            <div class="pwr-col-title">
+              <span>TEC:</span>
+              <strong style="color:#f8fafc;" id="tecWLabel">0.0 W</strong>
+            </div>
+            <span class="pwr-col-sub" id="tecDetailLabel">0.00A @ 9.0V</span>
+          </div>
+          <div class="pwr-col">
+            <div class="pwr-col-title">
+              <span>Fan (MT3608):</span>
+              <strong style="color:#a78bfa;" id="fanWLabel">0.0 W</strong>
+            </div>
+            <span class="pwr-col-sub" id="fanDetailLabel">0.00A @ 15.0V</span>
+          </div>
+        </div>
+      </div>
+      
+      <button id="pwrBtn" class="btn btn-off" onclick="togglePower()">SYSTEM: OFF</button>
+    </div>
+
+    <div class="card">
+      <h3>System Load (CPU / GPU)</h3>
+      <div class="metric" style="margin-bottom:5px;">
+        <span class="sub-text">CPU Temp: <strong style="color:var(--batt)"><span id="cpuTempLabel">--</span>&deg;C</strong></span>
+        <span class="sub-text">RAM: <strong style="color:var(--accent)"><span id="ramLabel">--</span> GB</strong> | Swap: <strong style="color:#e91e63"><span id="swapLabel">--</span> GB</strong></span>
+      </div>
+      <canvas id="loadChart"></canvas>
+    </div>
+
+    <!-- Full-Width Live Performance + Session Benchmark + Chart Controls + CSV Logger -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <h3>
+        <span>Live Cooling Performance</span>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <button id="win40" class="pill-btn active" onclick="setChartWindow(40)">1m</button>
+          <button id="win300" class="pill-btn" onclick="setChartWindow(300)">5m</button>
+          <button id="win900" class="pill-btn" onclick="setChartWindow(900)">15m</button>
+          <button id="pwmToggleBtn" class="pill-btn" onclick="togglePwmOverlay()">PWM %</button>
+          <button id="pauseChartBtn" class="pill-btn" onclick="toggleChartPause()">Pause</button>
+          <button id="csvBtn" class="pill-btn" onclick="toggleCsvRecording()">&#9679; Rec CSV</button>
+          <button class="pill-btn" onclick="resetSessionStats()" title="Reset Session Benchmark">Reset Stats</button>
+        </div>
+      </h3>
+
+      <!-- Session Benchmark & Energy Strip -->
+      <div class="bench-grid">
+        <div class="bench-pill">
+          <span class="bench-label">Active Run Time</span>
+          <span class="bench-val" id="sessTime">00:00</span>
+        </div>
+        <div class="bench-pill">
+          <span class="bench-label">Phone Battery Drop</span>
+          <span class="bench-val" id="sessBattDrop">-- &rarr; --</span>
+        </div>
+        <div class="bench-pill">
+          <span class="bench-label">Cooler Energy Used</span>
+          <span class="bench-val" style="color:var(--accent);" id="sessEnergy">0.00 Wh (0 mAh)</span>
+        </div>
+        <div class="bench-pill">
+          <span class="bench-label">Peak Heatsink Temp</span>
+          <span class="bench-val" style="color:var(--hot);" id="sessPeakHot">--&deg;C</span>
+        </div>
+      </div>
+
+      <canvas id="tempChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Install App & Single-URL Helper Modal -->
+  <div id="installModal" class="modal-overlay" onclick="if(event.target===this) closeInstallModal()">
+    <div class="modal-card">
+      <button class="close-btn" onclick="closeInstallModal()">&times;</button>
+      <h3>Install Standalone Android App</h3>
+      <div style="font-size:0.85rem; color:#cbd5e1; line-height:1.45;">
+        <div id="swStateBanner" style="padding:8px 10px; border-radius:8px; margin-bottom:10px; font-weight:600; font-size:0.82rem;"></div>
+        
+        <label class="form-label">Step 1: Ensure ESP Origins Are Allowed in Chrome Flag</label>
+        <input type="text" id="originsInputBox" class="input-field" readonly onclick="this.select()" style="font-size:0.8rem; color:var(--accent); margin-bottom:6px;">
+        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; margin-bottom:12px;" onclick="copyOriginsOnly()">1. Copy Origins List</button>
+
+        <label class="form-label">Step 2: Chrome Flag Address (Paste in Chrome URL bar)</label>
+        <input type="text" id="flagInputBox" class="input-field" value="chrome://flags/#unsafely-treat-insecure-origin-as-secure" readonly onclick="this.select()" style="font-size:0.8rem; color:#93c5fd; margin-bottom:6px;">
+        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; background:#3b82f6; color:#fff; margin-bottom:8px;" onclick="copyChromeFlagUrl()">2. Copy Chrome Flag URL</button>
+        
+        <div id="copyFlagMsg" style="font-size:0.82rem; color:#10b981; font-weight:bold; text-align:center; min-height:20px; margin-bottom:4px;"></div>
+        <div style="font-size:0.78rem; color:#94a3b8;">
+          Tap Chrome's <strong>&#8942; Menu &rarr; Add to Home screen &rarr; Install</strong>. Because this app shell is served over HTTPS, Android opens it as a true standalone app and automatically connects to both Router and Hotspot!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (Power Supply / MT3608 Calibration, Wi-Fi Config & STM32 Bootloader) -->
+  <div id="settingsModal" class="modal-overlay" onclick="if(event.target===this) closeSettings()">
+    <div class="modal-card">
+      <button class="close-btn" onclick="closeSettings()">&times;</button>
+      
+      <h3>Power &amp; Automation Settings</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:9px 12px; border-radius:8px; border:1px solid #334155; margin-bottom:8px;">
+        <span style="font-size:0.88rem; color:#f8fafc;">Stealth Mode (Mute ESP Blue LED)</span>
+        <button id="modalStealthBtn" onclick="toggleStealth()" style="background:#334155; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.8rem;">OFF</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:9px 12px; border-radius:8px; border:1px solid #334155; margin-bottom:12px;">
+        <span style="font-size:0.88rem; color:#f8fafc;">Auto-Wake (&ge;36&deg;C ON / &le;30.5&deg;C OFF)</span>
+        <button id="modalWakeBtn" onclick="toggleAutoWake()" style="background:#334155; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.8rem;">OFF</button>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label class="form-label">Supply Voltage (V)</label>
+          <input type="number" step="0.1" id="cfgPsuV" class="input-field" value="9.0">
+        </div>
+        <div>
+          <label class="form-label">Supply Max Current (A)</label>
+          <input type="number" step="0.1" id="cfgPsuA" class="input-field" value="3.0">
+        </div>
+        <div>
+          <label class="form-label">TEC Max Current @ Supply (A)</label>
+          <input type="number" step="0.05" id="cfgTecA" class="input-field" value="2.55">
+        </div>
+        <div>
+          <label class="form-label">Fan Voltage (MT3608 Out V)</label>
+          <input type="number" step="0.5" id="cfgFanV" class="input-field" value="15.0">
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label class="form-label">Fan Current @ Fan Voltage (A)</label>
+          <input type="number" step="0.02" id="cfgFanA" class="input-field" value="0.25">
+        </div>
+      </div>
+      <button class="btn" style="padding:10px; font-size:0.95rem; margin-bottom:6px; width:100%;" onclick="savePowerConfig()">Save Power Settings</button>
+      <div id="pwrSaveMsg" style="font-size:0.85rem; color:#10b981; text-align:center; min-height:18px; margin-bottom:8px;"></div>
+
+      <h3>Network Settings (2.4GHz)</h3>
+      <div class="metric" style="margin-bottom:6px;"><span class="sub-text">Active Connection:</span><span class="value" style="font-size:1.05rem; color:var(--accent);" id="currentSSID">Loading...</span></div>
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:10px; font-size:0.8rem; color:#94a3b8;">
+        Home Router IP: <strong style="color:#f8fafc;" id="staIpLabel">192.168.1.6</strong> | Hotspot IP: <strong style="color:#f8fafc;">192.168.4.1</strong>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input type="text" id="manualStaIp" placeholder="Router IP (e.g. 192.168.1.6)" class="input-field" style="margin-bottom:0; flex:1; font-size:0.85rem;">
+        <button class="btn" style="padding:8px 12px; font-size:0.82rem; margin-top:0;" onclick="saveManualStaIp()">Set IP</button>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <span class="sub-text" style="display:block; margin-bottom:6px; font-size:0.85rem;">Saved Networks (Auto-Connects):</span>
+        <div id="savedList" style="background:#0f172a; border:1px solid #334155; border-radius:8px; max-height:105px; overflow-y:auto; padding:5px;">
+           <div style="padding:8px; color:#64748b; font-size:0.9rem; text-align:center;">Loading...</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <button class="btn" style="flex:1; padding:9px; font-size:0.88rem; background:#3b82f6; color:#fff;" onclick="scanWiFi()" id="scanBtn">Scan For New Networks</button>
+      </div>
+
+      <select id="wifiList" class="input-field" style="display:none;" onchange="if(this.value) document.getElementById('wifiSSID').value = this.value;">
+        <option value="">Select a scanned network...</option>
+      </select>
+
+      <input type="text" id="wifiSSID" placeholder="Wi-Fi Name (SSID)" class="input-field">
+      <input type="password" id="wifiPass" placeholder="Wi-Fi Password" class="input-field">
+      <button class="btn" style="margin-top:2px; padding:10px; width: 100%; font-size:0.95rem; margin-bottom:16px;" onclick="saveWiFi()">Save &amp; Connect Wi-Fi</button>
+      <div id="wifiMsg" style="margin-bottom:10px; font-size:0.88rem; color:var(--accent); text-align: center;"></div>
+
+      <h3>STM32 Hardware Maintenance</h3>
+      <button class="btn" style="background:rgba(239,68,68,0.18); color:#ef4444; border:1px solid #ef4444; padding:10px; font-size:0.88rem; width:100%;" onclick="triggerStmBoot()">Jump STM32 to UART Bootloader (&lt;BOOT&gt;)</button>
+    </div>
+  </div>
+
+  <script>
+  let isSystemOn = false;
+  let isStealth  = false;
+  let isAutoWake = false;
+  let antiSweatActive = false;
+  let lastActiveSSID = "";
+  let currentDew = 20.0;
+  let lastRawTecPwm = 0;
+  let lastRawFanPwm = 0;
+  let latestTotalW = 0.0;
+  let latestTecW = 0.0;
+  let latestFanW = 0.0;
+
+  const DEW_MARGIN = 2.0;  // Safety buffer above Dew Point (in °C)
+  const MT3608_EFF = 0.88; // Typical MT3608 step-up efficiency
+  const PWM_MAX    = 255.0; // Matches STM32G030 8-bit analogWrite (0-255)
+
+  // --- Automatic Dual-IP / Unified Endpoint Failover Manager ---
+  const isExternalHost = (window.location.protocol === 'https:');
+  let savedStaIP = localStorage.getItem('cooler_sta_ip') || "192.168.1.6";
+  let apiBase = localStorage.getItem('cooler_last_base') || (isExternalHost ? ("http://" + savedStaIP) : "");
+
+  const fetchWithTimeout = (url, ms = 1200) => {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal, mode: 'cors', cache: 'no-store' }).finally(() => clearTimeout(id));
+  };
+
+  // Races Hotspot IP (192.168.4.1), Router IP (192.168.1.6), and cooler.local in parallel
+  const apiFetch = async (path) => {
+    try {
+      let res = await fetchWithTimeout(apiBase + path, 1100);
+      if (res.ok) {
+        let badge = document.getElementById('endpointBadge');
+        if (badge && apiBase) badge.innerText = "(" + apiBase.replace("http://", "") + ")";
+        return res;
+      }
+    } catch (e) {}
+
+    let candidates = [...new Set([
+      ...(!isExternalHost ? [""] : []),
+      "http://192.168.4.1",
+      ...(savedStaIP && savedStaIP !== "0.0.0.0" ? ["http://" + savedStaIP] : []),
+      "http://cooler.local"
+    ])].filter(b => b !== apiBase);
+
+    const probe = async (base) => {
+      let res = await fetchWithTimeout(base + path, 1400);
+      if (!res.ok) throw new Error("Not OK");
+      return { base, res };
+    };
+
+    try {
+      let winner = await Promise.any(candidates.map(b => probe(b)));
+      apiBase = winner.base;
+      if (winner.base) localStorage.setItem('cooler_last_base', winner.base);
+      let badge = document.getElementById('endpointBadge');
+      if (badge) {
+        let host = winner.base ? winner.base.replace("http://", "") : window.location.hostname;
+        badge.innerText = "(" + host + ")";
+      }
+      return winner.res;
+    } catch (e) {
+      throw new Error("ESP Unreachable");
+    }
+  };
+
+  const saveManualStaIp = () => {
+    const val = document.getElementById('manualStaIp').value.trim().replace(/^https?:\/\//, '');
+    if (val) {
+      savedStaIP = val;
+      localStorage.setItem('cooler_sta_ip', val);
+      apiBase = "http://" + val;
+      localStorage.setItem('cooler_last_base', apiBase);
+      document.getElementById('staIpLabel').innerText = val;
+      document.getElementById('wifiMsg').innerText = "Updated Router IP to " + val;
+      setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 2500);
+    }
+  };
+
+  // --- Universal HTTP + HTTPS Clipboard Helper ---
+  const copyTextUniversal = (inputId, msgText) => {
+    const inputEl = document.getElementById(inputId);
+    const msgEl = document.getElementById('copyFlagMsg');
+    if (!inputEl) return;
+    const text = inputEl.value;
+
+    inputEl.focus();
+    inputEl.select();
+    inputEl.setSelectionRange(0, 99999);
+
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (e) {}
+
+    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+      copied = true;
+    }
+
+    if (msgEl) {
+      msgEl.innerText = copied ? ("\u2713 " + msgText) : "Selected in box above — long-press to copy!";
+    }
+  };
+
+  // --- PWA Install Prompt & Service Worker Status Check ---
+  let deferredInstallPrompt = null;
+  const isStandaloneApp = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  const getOriginsString = () => {
+    let origins = ["http://cooler.local", "http://192.168.4.1"];
+    if (savedStaIP && savedStaIP !== "0.0.0.0") origins.push("http://" + savedStaIP);
+    return [...new Set(origins)].join(",");
+  };
+
+  const updateSwBanner = () => {
+    const banner = document.getElementById('swStateBanner');
+    const originsBox = document.getElementById('originsInputBox');
+    if (originsBox) originsBox.value = getOriginsString();
+    if (!banner) return;
+    if ('serviceWorker' in navigator) {
+      banner.style.background = "rgba(16,185,129,0.2)";
+      banner.style.color = "#10b981";
+      banner.style.border = "1px solid #10b981";
+      banner.innerText = "\u2713 HTTPS Standalone PWA Ready! Tap Chrome Menu (\u22EE) \u2192 Add to Home screen \u2192 Install.";
+    } else {
+      banner.style.background = "rgba(245,158,11,0.2)";
+      banner.style.color = "#f59e0b";
+      banner.style.border = "1px solid #f59e0b";
+      banner.innerText = "\u26A0 Chrome Flag Needed: Enable below so 1 URL works on both networks.";
+    }
+  };
+
+  if (isStandaloneApp()) {
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'none';
+    });
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    const btn = document.getElementById('installBtn');
+    if (btn && !isStandaloneApp()) btn.style.display = 'flex';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    const btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+  });
+
+  // --- Background Scroll Lock for Popup Modals ---
+  const syncBodyScrollLock = () => {
+    const sOpen = document.getElementById('settingsModal').style.display === 'flex';
+    const iOpen = document.getElementById('installModal').style.display === 'flex';
+    if (sOpen || iOpen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+  };
+
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('touchmove', (e) => {
+      if (e.target === overlay) e.preventDefault();
+    }, { passive: false });
+  });
+
+  const triggerInstallApp = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+    } else {
+      updateSwBanner();
+      document.getElementById('copyFlagMsg').innerText = "";
+      document.getElementById('installModal').style.display = 'flex';
+      syncBodyScrollLock();
+    }
+  };
+
+  const closeInstallModal = () => {
+    document.getElementById('installModal').style.display = 'none';
+    syncBodyScrollLock();
+  };
+
+  const copyOriginsOnly = () => {
+    document.getElementById('originsInputBox').value = getOriginsString();
+    copyTextUniversal('originsInputBox', 'Copied Origins List to clipboard!');
+  };
+
+  const copyChromeFlagUrl = () => {
+    copyTextUniversal('flagInputBox', 'Copied Chrome Flag URL! Paste in address bar.');
+  };
+
+  // Chart & CSV Controls
+  let tempChart = null;
+  let loadChart = null;
+  let maxChartPoints = 40;
+  let chartPaused = false;
+  let showPwmOverlay = false;
+  let csvRecording = false;
+  let csvRows = [];
+
+  // Session Benchmark State (Exact Wall-Clock Delta Integration)
+  let sessActiveSec = 0.0;
+  let sessStartBatt = null;
+  let sessMinBatt   = null;
+  let sessPeakHot   = null;
+  let sessEnergyWh  = 0.0;
+  let lastPollMs    = null;
+
+  // Power Config State (Synced from ESP LittleFS)
+  let pwrCfg = { psuV: 9.0, psuA: 3.0, tecA: 2.55, fanV: 15.0, fanA: 0.25 };
+
+  // Safe HTML Escaping for SSIDs containing quotes or special chars
+  const escapeHtml = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  // Synthesize brief WebAudio chime when Anti-Sweat warmup finishes
+  const playChime = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1174, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.35);
+    } catch(e) {}
+  };
+
+  const getMinSafeTemp = () => {
+    let minSafe = Math.ceil((currentDew + DEW_MARGIN) * 2) / 2;
+    return Math.min(35.0, Math.max(10.0, minSafe));
+  };
+
+  const updateClampNotice = (targetVal) => {
+    let minSafe = getMinSafeTemp();
+    let notice = document.getElementById('clampNotice');
+    if (targetVal <= minSafe) {
+      notice.innerText = "\u26A0 Clamped to safe limit (" + minSafe.toFixed(1) + "\u00B0C) to prevent condensation";
+    } else {
+      notice.innerText = "";
+    }
+  };
+
+  const updateStealthUI = (stealthState) => {
+    isStealth = stealthState;
+    const hdrBtn = document.getElementById('stealthBtn');
+    const mdlBtn = document.getElementById('modalStealthBtn');
+    if (isStealth) {
+      hdrBtn.classList.add('stealth-on');
+      mdlBtn.innerText = "ON (LED Muted)";
+      mdlBtn.style.background = "#c084fc";
+      mdlBtn.style.color = "#0f172a";
+    } else {
+      hdrBtn.classList.remove('stealth-on');
+      mdlBtn.innerText = "OFF";
+      mdlBtn.style.background = "#334155";
+      mdlBtn.style.color = "#fff";
+    }
+  };
+
+  const toggleStealth = () => {
+    updateStealthUI(!isStealth);
+    apiFetch("/stealth?s=" + (isStealth ? 1 : 0));
+  };
+
+  const updateAutoWakeUI = (wakeState) => {
+    isAutoWake = wakeState;
+    const cardBtn = document.getElementById('wakeBtn');
+    const mdlBtn  = document.getElementById('modalWakeBtn');
+    if (isAutoWake) {
+      cardBtn.className = "pill-btn wake-on";
+      cardBtn.innerText = "AUTO-WAKE: ON";
+      mdlBtn.innerText = "ON";
+      mdlBtn.style.background = "#10b981";
+      mdlBtn.style.color = "#0f172a";
+    } else {
+      cardBtn.className = "pill-btn";
+      cardBtn.innerText = "AUTO-WAKE: OFF";
+      mdlBtn.innerText = "OFF";
+      mdlBtn.style.background = "#334155";
+      mdlBtn.style.color = "#fff";
+    }
+  };
+
+  const toggleAutoWake = () => {
+    updateAutoWakeUI(!isAutoWake);
+    apiFetch("/autowake?w=" + (isAutoWake ? 1 : 0));
+  };
+
+  // Dedicated Power Meter Renderer (Updates both TEC and Fan columns with their own A & V)
+  const renderPowerMeter = (rawTecPwm, rawFanPwm) => {
+    document.getElementById('psuSpecLabel').innerText = pwrCfg.psuV.toFixed(1) + "V " + pwrCfg.psuA.toFixed(1) + "A";
+
+    let tecDuty = Math.min(1.0, Math.max(0.0, rawTecPwm / PWM_MAX));
+    let fanDuty = Math.min(1.0, Math.max(0.0, rawFanPwm / PWM_MAX));
+
+    let fanActualA = pwrCfg.fanA * fanDuty;
+    let fanOutW    = pwrCfg.fanV * fanActualA;
+    let fanRailW   = (fanDuty > 0) ? (fanOutW / MT3608_EFF) : 0.0;
+    let fanRailA   = fanRailW / pwrCfg.psuV;
+
+    let availTecPeakA = Math.min(pwrCfg.tecA, Math.max(0.0, pwrCfg.psuA - fanRailA));
+    let tecActualA    = availTecPeakA * tecDuty;
+    let tecW          = pwrCfg.psuV * tecActualA;
+
+    let totalW = tecW + fanRailW;
+    let totalA = totalW / pwrCfg.psuV;
+    let maxSupplyW = pwrCfg.psuV * pwrCfg.psuA;
+    let loadPct = Math.min(100, Math.round((totalW / maxSupplyW) * 100));
+
+    latestTotalW = totalW;
+    latestTecW   = tecW;
+    latestFanW   = fanRailW;
+
+    document.getElementById('totalCoolerW').innerText = totalW.toFixed(1) + " W";
+    document.getElementById('totalCoolerA').innerText = totalA.toFixed(2) + " A / " + maxSupplyW.toFixed(1) + " W (" + loadPct + "%)";
+    document.getElementById('coolerPwrBar').style.width = loadPct + "%";
+
+    document.getElementById('tecWLabel').innerText = tecW.toFixed(1) + " W";
+    document.getElementById('tecDetailLabel').innerText = tecActualA.toFixed(2) + "A @ " + pwrCfg.psuV.toFixed(1) + "V";
+
+    document.getElementById('fanWLabel').innerText = fanRailW.toFixed(1) + " W";
+    document.getElementById('fanDetailLabel').innerText = fanActualA.toFixed(2) + "A @ " + pwrCfg.fanV.toFixed(1) + "V";
+  };
+
+  const savePowerConfig = () => {
+    let v  = parseFloat(document.getElementById('cfgPsuV').value) || 9.0;
+    let a  = parseFloat(document.getElementById('cfgPsuA').value) || 3.0;
+    let ta = parseFloat(document.getElementById('cfgTecA').value) || 2.55;
+    let fv = parseFloat(document.getElementById('cfgFanV').value) || 15.0;
+    let fa = parseFloat(document.getElementById('cfgFanA').value) || 0.25;
+
+    pwrCfg = { psuV: v, psuA: a, tecA: ta, fanV: fv, fanA: fa };
+    renderPowerMeter(lastRawTecPwm, lastRawFanPwm);
+
+    apiFetch(`/setpower?v=${v}&a=${a}&ta=${ta}&fv=${fv}&fa=${fa}`).then(() => {
+      document.getElementById('pwrSaveMsg').innerText = "Power & MT3608 specs saved!";
+      setTimeout(() => { document.getElementById('pwrSaveMsg').innerText = ""; }, 2500);
+    });
+  };
+
+  // --- Chart Controls & CSV Export ---
+  const setChartWindow = (pts) => {
+    maxChartPoints = pts;
+    document.getElementById('win40').className  = 'pill-btn' + (pts === 40  ? ' active' : '');
+    document.getElementById('win300').className = 'pill-btn' + (pts === 300 ? ' active' : '');
+    document.getElementById('win900').className = 'pill-btn' + (pts === 900 ? ' active' : '');
+  };
+
+  const toggleChartPause = () => {
+    chartPaused = !chartPaused;
+    const btn = document.getElementById('pauseChartBtn');
+    btn.className = 'pill-btn' + (chartPaused ? ' active' : '');
+    btn.innerText = chartPaused ? 'Resume' : 'Pause';
+  };
+
+  const togglePwmOverlay = () => {
+    showPwmOverlay = !showPwmOverlay;
+    document.getElementById('pwmToggleBtn').className = 'pill-btn' + (showPwmOverlay ? ' active' : '');
+    if (tempChart) {
+      tempChart.data.datasets[4].hidden = !showPwmOverlay;
+      tempChart.options.scales.y1.display = showPwmOverlay;
+      tempChart.update();
+    }
+  };
+
+  const toggleCsvRecording = () => {
+    const btn = document.getElementById('csvBtn');
+    if (!csvRecording) {
+      csvRows = ["Time,Mode,System_On,Batt_C,Cold_C,Hot_C,Dew_C,Target_C,TEC_PWM,Fan_PWM,Total_W,TEC_W,Fan_W,CPU_Pct,GPU_Pct,Phone_W"];
+      csvRecording = true;
+      btn.className = "pill-btn rec-on";
+      btn.innerText = "\u25A0 Stop & Save (0s)";
+    } else {
+      csvRecording = false;
+      btn.className = "pill-btn";
+      btn.innerText = "\u25CF Rec CSV";
+      if (csvRows.length > 1) {
+        let blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = "cooler_telemetry_" + new Date().toISOString().slice(0,19).replace(/[:T]/g, "-") + ".csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }
+  };
+
+  const resetSessionStats = () => {
+    sessActiveSec = 0.0;
+    sessStartBatt = null;
+    sessMinBatt   = null;
+    sessPeakHot   = null;
+    sessEnergyWh  = 0.0;
+    lastPollMs    = Date.now();
+    document.getElementById('sessTime').innerText = "00:00";
+    document.getElementById('sessBattDrop').innerText = "-- \u2192 --";
+    document.getElementById('sessEnergy').innerText = "0.00 Wh (0 mAh)";
+    document.getElementById('sessPeakHot').innerText = "--\u00B0C";
+  };
+
+  const triggerStmBoot = () => {
+    if (confirm("Put STM32G030 into ROM UART Bootloader mode (<BOOT>)?\n\nPeltier and Fan will turn OFF immediately, and ESP UART telemetry will pause so you can flash via UART.")) {
+      apiFetch("/stmboot").then(() => alert("Sent <BOOT> to STM32. ESP UART TX is now muted until you turn the cooler back ON."));
+    }
+  };
+  
+  const initCharts = () => {
+    if (typeof Chart === 'undefined' || tempChart) return;
+
+    const ctxTemp = document.getElementById('tempChart').getContext('2d');
+    tempChart = new Chart(ctxTemp, {
+      type: 'line',
+      data: { labels: [], datasets: [
+          { label: 'Battery', borderColor: '#f59e0b', data: [], tension: 0.3, borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+          { label: 'Hot Side', borderColor: '#ef4444', data: [], tension: 0.3, borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+          { label: 'Cold Plate', borderColor: '#0ea5e9', data: [], tension: 0.3, borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+          { label: 'Dew Point', borderColor: '#fcd34d', borderDash: [5, 5], data: [], tension: 0.3, borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+          { label: 'TEC PWM %', borderColor: '#d946ef', borderDash: [2, 2], data: [], tension: 0.2, borderWidth: 1.5, pointRadius: 0, yAxisID: 'y1', hidden: true }
+      ]},
+      options: {
+        responsive: true, animation: false,
+        scales: {
+          x: { display: false },
+          y: { position: 'left', ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+          y1: { position: 'right', min: 0, max: 100, display: false, ticks: { color: '#d946ef' }, grid: { drawOnChartArea: false } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc', usePointStyle: true, boxWidth: 8 } } }
+      }
+    });
+
+    const ctxLoad = document.getElementById('loadChart').getContext('2d');
+    loadChart = new Chart(ctxLoad, {
+      type: 'line',
+      data: { labels: [], datasets: [
+          { label: 'CPU %', borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.15)', fill: true, data: [], tension: 0.3, borderWidth: 2, pointRadius: 0 },
+          { label: 'GPU %', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', fill: true, data: [], tension: 0.3, borderWidth: 2, pointRadius: 0 }
+      ]},
+      options: {
+        responsive: true, animation: false,
+        scales: { x: { display: false }, y: { min: 0, max: 100, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } },
+        plugins: { legend: { labels: { color: '#f8fafc', usePointStyle: true, boxWidth: 8 } } }
+      }
+    });
+  };
+
+  initCharts();
+
+  const updateModeUI = (mode) => {
+    document.getElementById('mode0').className = 'mode-btn' + (mode === 0 ? ' active-auto' : '');
+    document.getElementById('mode1').className = 'mode-btn' + (mode === 1 ? ' active-ext' : '');
+  };
+
+  const setMode = (mode) => {
+    updateModeUI(mode);
+    if (mode === 1) {
+      let safeTarget = Math.max(15.0, getMinSafeTemp());
+      document.getElementById('targetLabel').innerText = safeTarget.toFixed(1);
+      updateClampNotice(safeTarget);
+    }
+    apiFetch("/setmode?m=" + mode);
+  };
+  
+  const togglePower = () => {
+    let cold = parseFloat(document.getElementById("coldTemp").innerText) || 25.0;
+    if (isSystemOn && cold > 0.5 && cold <= (currentDew + 2.5)) {
+      antiSweatActive = true;
+    } else {
+      antiSweatActive = false;
+    }
+    isSystemOn = !isSystemOn;
+    const btn = document.getElementById('pwrBtn');
+    btn.innerText = isSystemOn ? "SYSTEM: ON" : (antiSweatActive ? "WARMING PLATE (ANTI-SWEAT)..." : "SYSTEM: OFF");
+    btn.className = isSystemOn ? "btn" : (antiSweatActive ? "btn btn-warmup" : "btn btn-off");
+    apiFetch("/set?state=" + (isSystemOn ? 1 : 0));
+  };
+
+  const loadSavedNetworks = () => {
+    apiFetch('/savedwifi').then(r => r.json()).then(data => {
+      let list = document.getElementById('savedList');
+      list.innerHTML = '';
+      if(data.length === 0) {
+        list.innerHTML = '<div style="padding:8px; color:#64748b; font-size:0.9rem; text-align:center;">No networks saved</div>';
+        return;
+      }
+      let activeSSID = document.getElementById('currentSSID').innerText;
+      data.forEach(ssid => {
+        let isCurrent = (ssid === activeSSID);
+        let encSSID = encodeURIComponent(ssid);
+        let safeLabel = escapeHtml(ssid);
+        let actionHtml = isCurrent 
+          ? `<span style="color:#10b981; font-size:0.8rem; font-weight:bold; margin-right:10px;">Connected</span>`
+          : `<button onclick="connectNetwork(decodeURIComponent('${encSSID}'))" style="background:#3b82f6; border:none; color:#fff; border-radius:4px; padding:4px 10px; margin-right:5px; cursor:pointer; font-size:0.8rem; font-weight:bold;">Connect</button>`;
+          
+        list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #1e293b;">
+          <span style="font-size:0.95rem; color:#f8fafc;">${safeLabel}</span>
+          <div>
+            ${actionHtml}
+            <button onclick="forgetNetwork(decodeURIComponent('${encSSID}'))" style="background:var(--hot); border:none; color:#fff; border-radius:4px; padding:4px 10px; cursor:pointer; font-size:0.8rem; font-weight:bold;">Forget</button>
+          </div>
+        </div>`;
+      });
+    });
+  };
+
+  const connectNetwork = (ssid) => {
+    document.getElementById('wifiMsg').innerText = "Switching to " + ssid + "...";
+    document.getElementById("currentSSID").innerText = ssid;
+    lastActiveSSID = ssid;
+    loadSavedNetworks();
+
+    apiFetch(`/connectsaved?ssid=${encodeURIComponent(ssid)}`).then(() => {
+      setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 3000);
+    }).catch(() => {
+      setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 3000);
+    });
+  };
+
+  const forgetNetwork = (ssid) => {
+    if(confirm("Forget network: " + ssid + "?")) {
+      apiFetch(`/clearwifi?ssid=${encodeURIComponent(ssid)}`).then(() => {
+        loadSavedNetworks(); 
+      });
+    }
+  };
+
+  const openSettings = () => { 
+    document.getElementById('cfgPsuV').value = pwrCfg.psuV;
+    document.getElementById('cfgPsuA').value = pwrCfg.psuA;
+    document.getElementById('cfgTecA').value = pwrCfg.tecA;
+    document.getElementById('cfgFanV').value = pwrCfg.fanV;
+    document.getElementById('cfgFanA').value = pwrCfg.fanA;
+    document.getElementById('staIpLabel').innerText = savedStaIP || "192.168.1.6";
+    document.getElementById('manualStaIp').value = savedStaIP || "192.168.1.6";
+    document.getElementById('settingsModal').style.display = 'flex';
+    syncBodyScrollLock();
+    loadSavedNetworks();
+  };
+
+  const closeSettings = () => {
+    document.getElementById('settingsModal').style.display = 'none';
+    syncBodyScrollLock();
+  };
+
+  const saveWiFi = () => {
+    let s = document.getElementById('wifiSSID').value;
+    let p = document.getElementById('wifiPass').value;
+    if(!s) { alert("SSID cannot be empty"); return; }
+    
+    document.getElementById('wifiMsg').innerText = "Saving & Connecting...";
+    document.getElementById("currentSSID").innerText = s;
+    lastActiveSSID = s;
+
+    apiFetch(`/setwifi?ssid=${encodeURIComponent(s)}&pass=${encodeURIComponent(p)}`)
+      .then(() => {
+        loadSavedNetworks();
+        document.getElementById('wifiSSID').value = '';
+        document.getElementById('wifiPass').value = '';
+        setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 3000);
+      })
+      .catch(() => { 
+        loadSavedNetworks();
+        setTimeout(() => { document.getElementById('wifiMsg').innerText = ""; }, 3000);
+      });
+  };
+
+  const scanWiFi = () => {
+    let btn = document.getElementById('scanBtn');
+    btn.innerText = "Scanning...";
+    apiFetch("/scan");
+    let checkScan = setInterval(() => {
+      apiFetch("/scan").then(r => r.text()).then(text => {
+        if(text !== "scanning") {
+          clearInterval(checkScan);
+          btn.innerText = "Scan For New Networks";
+          try {
+            let networks = JSON.parse(text);
+            let sel = document.getElementById('wifiList');
+            sel.style.display = 'block';
+            sel.innerHTML = '<option value="">Select a scanned network...</option>';
+            let uniqueNetworks = [...new Set(networks)];
+            uniqueNetworks.forEach(n => {
+              if(n) {
+                let opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                sel.appendChild(opt);
+              }
+            });
+          } catch(e) {}
+        }
+      });
+    }, 2000);
+  };
+
+  const fetchTelemetry = () => {
+    apiFetch("/data").then(r => r.json()).then(data => {
+      let nowMs = Date.now();
+      let dtSec = (lastPollMs !== null) ? Math.min(5.0, Math.max(0.1, (nowMs - lastPollMs) / 1000.0)) : 1.0;
+      lastPollMs = nowMs;
+
+      // Learn and persist Home Wi-Fi IP for automatic cross-network failover
+      if (data.ip && data.ip !== "0.0.0.0") {
+        savedStaIP = data.ip;
+        localStorage.setItem('cooler_sta_ip', data.ip);
+        const ipEl = document.getElementById('staIpLabel');
+        if (ipEl) ipEl.innerText = data.ip;
+      }
+
+      document.getElementById("battTemp").innerText = data.batt;
+      document.getElementById("coldTemp").innerText = data.cold;
+      document.getElementById("hotTemp").innerText = data.hot;
+      document.getElementById("dewPoint").innerText = data.dew;
+      document.getElementById("pwmState").innerText = data.pwm;
+      document.getElementById("fanState").innerText = data.fan;
+      
+      document.getElementById("localTemp").innerText = data.ltemp;
+      document.getElementById("localHum").innerText = data.lhum;
+      document.getElementById("cpuTempLabel").innerText = data.ctmp;
+      document.getElementById("ramLabel").innerText = data.ram;
+      document.getElementById("swapLabel").innerText = data.swap;
+      document.getElementById("currentSSID").innerText = data.ssid; 
+
+      currentDew = parseFloat(data.dew);
+      if (data.stealth !== undefined) updateStealthUI(data.stealth === 1);
+      if (data.wake !== undefined) updateAutoWakeUI(data.wake === 1);
+
+      if (data.psuv !== undefined) {
+        pwrCfg.psuV = parseFloat(data.psuv);
+        pwrCfg.psuA = parseFloat(data.psua);
+        pwrCfg.tecA = parseFloat(data.teca);
+        pwrCfg.fanV = parseFloat(data.fanv);
+        pwrCfg.fanA = parseFloat(data.fana);
+      }
+
+      let cold = parseFloat(data.cold), hot = parseFloat(data.hot), batt = parseFloat(data.batt), dew = parseFloat(data.dew);
+
+      let newState = (data.state === 1);
+      if (isSystemOn && !newState && cold > 0.5 && cold <= (dew + 2.5)) {
+        antiSweatActive = true;
+      }
+      isSystemOn = newState;
+
+      if (isSystemOn) antiSweatActive = false;
+      else if (antiSweatActive && cold >= (dew + 2.5)) {
+        antiSweatActive = false;
+        playChime();
+      }
+
+      const btn = document.getElementById('pwrBtn');
+      if (isSystemOn) {
+        btn.innerText = "SYSTEM: ON";
+        btn.className = "btn";
+      } else if (antiSweatActive) {
+        btn.innerText = "WARMING PLATE (" + cold.toFixed(1) + "\u00B0C \u2192 " + (dew + 2.5).toFixed(1) + "\u00B0C)...";
+        btn.className = "btn btn-warmup";
+      } else {
+        btn.innerText = "SYSTEM: OFF";
+        btn.className = "btn btn-off";
+      }
+
+      if (data.mode !== undefined) updateModeUI(data.mode);
+      if (data.autoMsg) document.getElementById('autoStatusText').innerText = data.autoMsg;
+
+      if (data.target) {
+        document.getElementById('targetLabel').innerText = data.target;
+        updateClampNotice(parseFloat(data.target));
+      }
+
+      // --- 1. Real-Time Thermal Gradient Diagnostics (Delta-T) ---
+      let tecDeltaEl = document.getElementById('tecDeltaVal');
+      let tecBadgeEl = document.getElementById('tecDeltaBadge');
+      let phnDeltaEl = document.getElementById('phoneDeltaVal');
+      let phnBadgeEl = document.getElementById('phoneDeltaBadge');
+
+      if (cold > 0.5 && hot > 0.5) {
+        let tecDT = hot - cold;
+        tecDeltaEl.innerText = (tecDT >= 0 ? "+" : "") + tecDT.toFixed(1) + "\u00B0C";
+        if (!isSystemOn) {
+          tecBadgeEl.className = "diag-badge badge-info"; tecBadgeEl.innerText = "Standby";
+        } else if (tecDT <= 18.0) {
+          tecBadgeEl.className = "diag-badge badge-good"; tecBadgeEl.innerText = "High COP";
+        } else if (tecDT <= 25.5) {
+          tecBadgeEl.className = "diag-badge badge-info"; tecBadgeEl.innerText = "Optimal Lift";
+        } else {
+          tecBadgeEl.className = "diag-badge badge-crit"; tecBadgeEl.innerText = "Heat Soak";
+        }
+      } else {
+        tecDeltaEl.innerText = "--\u00B0C";
+        tecBadgeEl.className = "diag-badge badge-info"; tecBadgeEl.innerText = "Standby";
+      }
+
+      if (cold > 0.5 && batt > 5.0) {
+        let phnDT = batt - cold;
+        phnDeltaEl.innerText = (phnDT >= 0 ? "+" : "") + phnDT.toFixed(1) + "\u00B0C";
+        if (!isSystemOn) {
+          phnBadgeEl.className = "diag-badge badge-info"; phnBadgeEl.innerText = "Standby";
+        } else if (phnDT < 5.5) {
+          phnBadgeEl.className = "diag-badge badge-warn"; phnBadgeEl.innerText = "Low Gradient";
+        } else if (phnDT <= 12.5) {
+          phnBadgeEl.className = "diag-badge badge-good"; phnBadgeEl.innerText = "Optimal Contact";
+        } else {
+          phnBadgeEl.className = "diag-badge badge-warn"; phnBadgeEl.innerText = "Glass Bottleneck";
+        }
+      } else {
+        phnDeltaEl.innerText = "--\u00B0C";
+        phnBadgeEl.className = "diag-badge badge-info"; phnBadgeEl.innerText = "Standby";
+      }
+
+      // --- 2. Estimated Cooler Power Draw (STM32 0-255 Scale) ---
+      lastRawTecPwm = parseInt(data.pwm) || 0;
+      lastRawFanPwm = parseInt(data.fan) || 0;
+      renderPowerMeter(lastRawTecPwm, lastRawFanPwm);
+
+      // --- 3. Exact Wall-Clock Session Benchmark & Energy Counter (Wh / mAh) ---
+      if (isSystemOn || lastRawFanPwm > 0) {
+        if (isSystemOn) {
+          sessActiveSec += dtSec;
+          let totalSec = Math.floor(sessActiveSec);
+          let mins = String(Math.floor(totalSec / 60)).padStart(2, '0');
+          let secs = String(totalSec % 60).padStart(2, '0');
+          document.getElementById('sessTime').innerText = mins + ":" + secs;
+
+          if (batt > 5.0) {
+            if (sessStartBatt === null) sessStartBatt = batt;
+            if (sessMinBatt === null || batt < sessMinBatt) sessMinBatt = batt;
+            let drop = sessStartBatt - sessMinBatt;
+            document.getElementById('sessBattDrop').innerText = sessStartBatt.toFixed(1) + "\u00B0C \u2192 " + sessMinBatt.toFixed(1) + "\u00B0C (-" + drop.toFixed(1) + "\u00B0C)";
+          }
+        }
+        if (hot > 0.5 && (sessPeakHot === null || hot > sessPeakHot)) {
+          sessPeakHot = hot;
+          document.getElementById('sessPeakHot').innerText = sessPeakHot.toFixed(1) + "\u00B0C";
+        }
+        sessEnergyWh += (latestTotalW * dtSec) / 3600.0;
+        let sessMah = (sessEnergyWh / pwrCfg.psuV) * 1000.0;
+        document.getElementById('sessEnergy').innerText = sessEnergyWh.toFixed(2) + " Wh (" + Math.round(sessMah) + " mAh)";
+      }
+
+      // --- 4. CSV Telemetry Recording ---
+      let now = new Date().toLocaleTimeString();
+      if (csvRecording) {
+        let modeStr = (data.mode === 1) ? "EXTREME" : "AUTO";
+        csvRows.push(`${now},${modeStr},${data.state},${data.batt},${data.cold},${data.hot},${data.dew},${data.target},${data.pwm},${data.fan},${latestTotalW.toFixed(2)},${latestTecW.toFixed(2)},${latestFanW.toFixed(2)},${data.cpu},${data.gpu},${data.pwr}`);
+        document.getElementById('csvBtn').innerText = "\u25A0 Stop & Save (" + (csvRows.length - 1) + "s)";
+      }
+
+      if (data.ssid !== lastActiveSSID) {
+        lastActiveSSID = data.ssid;
+        if (document.getElementById('settingsModal').style.display === 'flex') {
+          loadSavedNetworks();
+        }
+      }
+
+      let pwrEl = document.getElementById("battPower");
+      let chgEl = document.getElementById("chgState");
+      pwrEl.innerText = parseFloat(data.pwr).toFixed(2) + " W";
+      if(data.chg === 1) { pwrEl.style.color = "#4ade80"; chgEl.innerText = "(Charging)"; }
+      else { pwrEl.style.color = "#f87171"; chgEl.innerText = "(Discharging)"; }
+
+      // Prioritized Warning Logic (including Anti-Sweat Safe Warmup alert)
+      let warn = document.getElementById("warningBox");
+      if (data.fault === 1) {
+        warn.style.display = "block";
+        warn.className = "warn-critical";
+        warn.innerText = "\u26A0 HARDWARE FAULT: Thermistor Error";
+      } else if (hot > 55.0) {
+        warn.style.display = "block";
+        warn.className = "warn-critical";
+        warn.innerText = "\u26A0 OVERHEAT: Heatsink Above 55\u00B0C";
+      } else if (antiSweatActive) {
+        warn.style.display = "block";
+        warn.className = "warn-throttle";
+        warn.innerText = "\u26A0 ANTI-SWEAT: Keep Phone Clamped Until Plate Hits " + (dew + 2.5).toFixed(1) + "\u00B0C";
+      } else if (cold > 0.5 && cold <= (dew + 3.5)) {
+        warn.style.display = "block";
+        if (cold <= (dew + 1.5)) { 
+          warn.className = "warn-critical"; 
+          warn.innerText = "\u26A0 CRITICAL: Cooling Paused"; 
+        } else { 
+          warn.className = "warn-throttle"; 
+          warn.innerText = "\u26A0 RISK: Dew Point Clamped"; 
+        }
+      } else { 
+        warn.style.display = "none"; 
+      }
+
+      document.getElementById("lastUpdate").innerText = now; 
+
+      if (!tempChart && typeof Chart !== 'undefined') initCharts();
+
+      if (tempChart && loadChart && !chartPaused) {
+        while (tempChart.data.labels.length >= maxChartPoints) {
+          tempChart.data.labels.shift(); tempChart.data.datasets.forEach(d => d.data.shift());
+        }
+        while (loadChart.data.labels.length >= maxChartPoints) {
+          loadChart.data.labels.shift(); loadChart.data.datasets.forEach(d => d.data.shift());
+        }
+        
+        let tecPwmPct = Math.round((lastRawTecPwm / PWM_MAX) * 100);
+        tempChart.data.labels.push(now);
+        tempChart.data.datasets[0].data.push(data.batt);
+        tempChart.data.datasets[1].data.push(data.hot);
+        tempChart.data.datasets[2].data.push(data.cold);
+        tempChart.data.datasets[3].data.push(data.dew);
+        tempChart.data.datasets[4].data.push(tecPwmPct);
+        tempChart.update();
+
+        loadChart.data.labels.push(now);
+        loadChart.data.datasets[0].data.push(data.cpu);
+        loadChart.data.datasets[1].data.push(data.gpu);
+        loadChart.update();
+      }
+      
+    }).catch(e => console.log("Data fetch error"))
+      .finally(() => setTimeout(fetchTelemetry, 1000)); 
+  };
+  fetchTelemetry();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+  </script>
+</body>
+</html>
