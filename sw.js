@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cooler-https-pwa-v1';
+const CACHE_NAME = 'cooler-https-pwa-v2';
 const SHELL_ASSETS = [
   './',
   './index.html',
@@ -24,19 +24,22 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Never cache live HTTP calls to the ESP8266; always serve the HTTPS app shell from cache-first
-  if (!e.request.url.startsWith('http://')) {
-    e.respondWith(
-      caches.match(e.request, { ignoreSearch: true }).then(cached => {
-        const netFetch = fetch(e.request).then(res => {
-          if (res && res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-          }
-          return res;
-        }).catch(() => cached);
-        return cached || netFetch;
-      })
-    );
+  const url = new URL(e.request.url);
+  // Never cache live telemetry or firmware POST requests going to the ESP-12F
+  if (url.origin !== self.location.origin && !url.href.includes('chart.js')) {
+    return;
   }
+
+  e.respondWith(
+    caches.match(e.request, { ignoreSearch: true }).then(cached => {
+      const netFetch = fetch(e.request).then(res => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || netFetch;
+    })
+  );
 });
