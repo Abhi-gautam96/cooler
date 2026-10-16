@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cooler-https-pwa-v2';
+const CACHE_NAME = 'cooler-pwa-v6';
 const SHELL_ASSETS = [
   './',
   './index.html',
@@ -25,20 +25,27 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Never cache live telemetry or firmware POST requests going to the ESP-12F
-  if (url.origin !== self.location.origin && !url.href.includes('chart.js')) {
+
+  // Never intercept direct HTTP calls to the ESP-12F (192.168.4.1, router IP, or cooler.local)
+  if (url.origin !== self.location.origin && !url.href.includes('cdn.jsdelivr.net')) {
     return;
   }
 
+  const isNav = (e.request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
+
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(cached => {
+    caches.match(isNav ? './index.html' : e.request, { ignoreSearch: true }).then(cached => {
       const netFetch = fetch(e.request).then(res => {
         if (res && res.ok) {
           const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          caches.open(CACHE_NAME).then(c => {
+            c.put(isNav ? './index.html' : e.request, clone);
+          });
         }
         return res;
       }).catch(() => cached);
+
+      // Cache-First so GitHub PWA launches immediately when offline on ESP Hotspot
       return cached || netFetch;
     })
   );
