@@ -304,4 +304,107 @@
     </div>
   </div>
 
-  <!-- Install App
+    <!-- Install App & Single-URL Helper Modal -->
+  <div id="installModal" class="modal-overlay" onclick="if(event.target===this) closeInstallModal()">
+    <div class="modal-card">
+      <button class="close-btn" onclick="closeInstallModal()">&times;</button>
+      <h3>1-Time Setup: Single App for Router &amp; Hotspot</h3>
+      <div style="font-size:0.85rem; color:#cbd5e1; line-height:1.45;">
+        <div id="swStateBanner" style="padding:8px 10px; border-radius:8px; margin-bottom:10px; font-weight:600; font-size:0.82rem;"></div>
+        
+        <label class="form-label">Step 1: Origins List (Tap button or box to copy)</label>
+        <input type="text" id="originsInputBox" class="input-field" readonly onclick="this.select()" style="font-size:0.8rem; color:var(--accent); margin-bottom:6px;">
+        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; margin-bottom:12px;" onclick="copyOriginsOnly()">1. Copy Origins List</button>
+
+        <label class="form-label">Step 2: Chrome Flag Address (Paste in Chrome URL bar)</label>
+        <input type="text" id="flagInputBox" class="input-field" value="chrome://flags/#unsafely-treat-insecure-origin-as-secure" readonly onclick="this.select()" style="font-size:0.8rem; color:#93c5fd; margin-bottom:6px;">
+        <button class="btn" style="padding:9px; font-size:0.85rem; width:100%; background:#3b82f6; color:#fff; margin-bottom:8px;" onclick="copyChromeFlagUrl()">2. Copy Chrome Flag URL</button>
+        
+        <div id="copyFlagMsg" style="font-size:0.82rem; color:#10b981; font-weight:bold; text-align:center; min-height:20px; margin-bottom:4px;"></div>
+        <div style="font-size:0.78rem; color:#94a3b8;">
+          If installed via GitHub Pages (HTTPS), tap Chrome's site settings icon next to the URL bar and allow <strong>Insecure content</strong> so the app can talk directly to your ESP-12F over local HTTP.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (Power Supply / MT3608 Calibration, Wi-Fi Config & Wireless STM32 Flasher) -->
+  <div id="settingsModal" class="modal-overlay" onclick="if(event.target===this) closeSettings()">
+    <div class="modal-card">
+      <button class="close-btn" onclick="closeSettings()">&times;</button>
+      
+      <h3>Power &amp; Automation Settings</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:9px 12px; border-radius:8px; border:1px solid #334155; margin-bottom:8px;">
+        <span style="font-size:0.88rem; color:#f8fafc;">Stealth Mode (Mute ESP Blue LED)</span>
+        <button id="modalStealthBtn" onclick="toggleStealth()" style="background:#334155; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.8rem;">OFF</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:9px 12px; border-radius:8px; border:1px solid #334155; margin-bottom:12px;">
+        <span style="font-size:0.88rem; color:#f8fafc;">Auto-Wake (&ge;36&deg;C ON / &le;30.5&deg;C OFF)</span>
+        <button id="modalWakeBtn" onclick="toggleAutoWake()" style="background:#334155; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:0.8rem;">OFF</button>
+      </div>
+
+      <div class="form-grid">
+        <div>
+          <label class="form-label">Supply Voltage (V)</label>
+          <input type="number" step="0.1" id="cfgPsuV" class="input-field" value="9.0">
+        </div>
+        <div>
+          <label class="form-label">Supply Max Current (A)</label>
+          <input type="number" step="0.1" id="cfgPsuA" class="input-field" value="3.0">
+        </div>
+        <div>
+          <label class="form-label">TEC Max Current @ Supply (A)</label>
+          <input type="number" step="0.05" id="cfgTecA" class="input-field" value="2.55">
+        </div>
+        <div>
+          <label class="form-label">Fan Voltage (MT3608 Out V)</label>
+          <input type="number" step="0.5" id="cfgFanV" class="input-field" value="15.0">
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label class="form-label">Fan Current @ Fan Voltage (A)</label>
+          <input type="number" step="0.02" id="cfgFanA" class="input-field" value="0.25">
+        </div>
+      </div>
+      <button class="btn" style="padding:10px; font-size:0.95rem; margin-bottom:6px; width:100%;" onclick="savePowerConfig()">Save Power Settings</button>
+      <div id="pwrSaveMsg" style="font-size:0.85rem; color:#10b981; text-align:center; min-height:18px; margin-bottom:8px;"></div>
+
+      <h3>Network Settings (2.4GHz)</h3>
+      <div class="metric" style="margin-bottom:6px;"><span class="sub-text">Active Connection:</span><span class="value" style="font-size:1.05rem; color:var(--accent);" id="currentSSID">Loading...</span></div>
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:12px; font-size:0.8rem; color:#94a3b8;">
+        Unified URL: <a href="http://cooler.local" style="color:var(--accent); font-weight:bold;">http://cooler.local</a><br>
+        Home IP: <strong style="color:#f8fafc;" id="staIpLabel">--</strong> | Hotspot IP: <strong style="color:#f8fafc;">192.168.4.1</strong>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <span class="sub-text" style="display:block; margin-bottom:6px; font-size:0.85rem;">Saved Networks (Auto-Connects):</span>
+        <div id="savedList" style="background:#0f172a; border:1px solid #334155; border-radius:8px; max-height:105px; overflow-y:auto; padding:5px;">
+           <div style="padding:8px; color:#64748b; font-size:0.9rem; text-align:center;">Loading...</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <button class="btn" style="flex:1; padding:9px; font-size:0.88rem; background:#3b82f6; color:#fff;" onclick="scanWiFi()" id="scanBtn">Scan For New Networks</button>
+      </div>
+
+      <select id="wifiList" class="input-field" style="display:none;" onchange="if(this.value) document.getElementById('wifiSSID').value = this.value;">
+        <option value="">Select a scanned network...</option>
+      </select>
+
+      <input type="text" id="wifiSSID" placeholder="Wi-Fi Name (SSID)" class="input-field">
+      <input type="password" id="wifiPass" placeholder="Wi-Fi Password" class="input-field">
+      <button class="btn" style="margin-top:2px; padding:10px; width: 100%; font-size:0.95rem; margin-bottom:16px;" onclick="saveWiFi()">Save &amp; Connect Wi-Fi</button>
+      <div id="wifiMsg" style="margin-bottom:10px; font-size:0.88rem; color:var(--accent); text-align: center;"></div>
+
+      <h3>STM32 Wireless Firmware Update (.bin)</h3>
+      <input type="file" id="stmBinFile" accept=".bin" class="input-field" style="padding:7px; font-size:0.82rem;">
+      <button class="btn" style="padding:10px; font-size:0.92rem; width:100%; margin-bottom:8px;" onclick="uploadStmFirmware()">Flash STM32 Wirelessly</button>
+      <div id="stmFlashBox" style="display:none; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:8px 10px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+          <span id="stmFlashText" style="color:var(--accent); font-weight:bold;">Uploading...</span>
+          <span id="stmFlashPct" style="color:#94a3b8;">0%</span>
+        </div>
+        <div class="pwr-bar-bg" style="margin:0;"><div class="pwr-bar-fill" id="stmFlashBar" style="width:0%;"></div></div>
+      </div>
+      <button class="btn" style="background:rgba(239,68,68,0.18); color:#ef4444; border:1px solid #ef4444; padding:9px; font-size:0.84rem; width:100%;" onclick="triggerStmBoot()">Manual UART Bootloader (&lt;BOOT&gt;)</button>
+    </div>
+  </div>
